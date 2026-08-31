@@ -119,8 +119,15 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
   const current = room.queue.find((t) => t.id === room.currentTicketId) || null;
   const players = room.users.filter((u) => u.role === 'player');
   const spectators = room.users.filter((u) => u.role === 'spectator');
-  const activeCount = players.filter((u) => !u.away).length;
-  const votedCount = players.filter((u) => !u.away && u.hasVoted).length;
+  const voterPool = players.filter((u) => !u.away && u.connected !== false && u.id !== room.hostId);
+  const activeCount = voterPool.length;
+  const votedCount = voterPool.filter((u) => u.hasVoted).length;
+
+  // If the crown lands on us mid-round the server drops our ballot; clear the
+  // local card highlight so it doesn't lie when the crown moves on.
+  useEffect(() => {
+    if (isHost) setMyVote(null);
+  }, [isHost]);
 
   function showToast(msg) {
     setToast(msg);
@@ -322,6 +329,10 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                       <span className="vote-chip offline-chip">📡 reconnecting…</span>
                     ) : u.away ? (
                       <span className="vote-chip zzz">💤</span>
+                    ) : u.id === room.hostId ? (
+                      <span className="vote-chip modchip" title="Moderator — doesn't vote">
+                        🎙️
+                      </span>
                     ) : room.state === 'revealed' ? (
                       u.vote != null ? (
                         <span className={`vote-chip revealed ${isDissenter ? 'womp' : ''}`}>{u.vote}</span>
@@ -432,7 +443,10 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
           )}
 
           {/* ---------- deck ---------- */}
-          {isPlayer && !me?.away && room.state === 'voting' && (
+          {isPlayer && isHost && !me?.away && room.state === 'voting' && (
+            <div className="away-note">🎙️ You’re moderating this round — no vote needed from you.</div>
+          )}
+          {isPlayer && !isHost && !me?.away && room.state === 'voting' && (
             <div className="deck-wrap">
               {writeInOpen && (
                 <div className="writein-popover">

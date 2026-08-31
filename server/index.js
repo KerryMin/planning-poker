@@ -50,8 +50,12 @@ function makeRoom(code) {
   };
 }
 
+// The moderator facilitates and sits out the vote, so the host is never an
+// active player even when they joined with the player role.
 function activePlayers(room) {
-  return [...room.users.values()].filter((u) => u.role === 'player' && !u.away && u.connected);
+  return [...room.users.values()].filter(
+    (u) => u.role === 'player' && !u.away && u.connected && u.id !== room.hostId
+  );
 }
 
 function currentTicket(room) {
@@ -145,7 +149,7 @@ function reveal(room) {
 function maybeAutoReveal(room) {
   if (!room.autoReveal || room.state !== 'voting') return;
   const players = activePlayers(room);
-  if (players.length >= 2 && players.every((u) => u.vote != null)) reveal(room);
+  if (players.length >= 1 && players.every((u) => u.vote != null)) reveal(room);
 }
 
 function resetVotes(room) {
@@ -178,6 +182,8 @@ function pickNewHost(room) {
     users.find((u) => u.connected) ||
     users[0];
   room.hostId = next ? next.id : null;
+  // Moderators don't vote; drop any ballot they cast before getting the crown.
+  if (next && room.state === 'voting') next.vote = null;
 }
 
 function parseTickets(text) {
@@ -259,7 +265,7 @@ io.on('connection', (socket) => {
 
   socket.on('vote', (value) => {
     if (!room || !user || room.state !== 'voting') return;
-    if (user.role !== 'player' || user.away) return;
+    if (user.role !== 'player' || user.away || user.id === room.hostId) return;
     const v = value == null ? null : String(value).slice(0, 20);
     user.vote = user.vote === v ? null : v; // clicking same card un-votes
     broadcast(room);
@@ -355,7 +361,11 @@ io.on('connection', (socket) => {
     const target = room.users.get(targetId);
     if (target) {
       room.hostId = target.id;
+      if (room.state === 'voting') target.vote = null;
       broadcast(room);
+      // The old host can vote now and the new one's ballot is gone —
+      // the round may already be complete without them.
+      maybeAutoReveal(room);
     }
   });
 

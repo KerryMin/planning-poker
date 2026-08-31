@@ -397,6 +397,11 @@ h3,
   border-style: dashed;
 }
 
+.vote-chip.modchip {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
 .vote-chip.offline-chip {
   font-family: var(--font-body);
   font-size: 12px;
