@@ -234,8 +234,8 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
       {/* ---------- header ---------- */}
       <header className="room-header">
         <div className="room-title">
-          <span className="logo-card">🃏</span>
-          <span className="room-name">Pointy Poker</span>
+          <span className="logo-card">🎉</span>
+          <span className="room-name">Point Party</span>
           <button className="room-code" onClick={copyLink} title="Copy invite link">
             {room.code} {copied ? '✅' : '🔗'}
           </button>

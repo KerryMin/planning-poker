@@ -1,4 +1,4 @@
-# 🃏 Pointy Poker
+# 🎉 Point Party
 
 Planning poker for remote agile teams — dark mode, emoji avatars, and celebrations when the team actually agrees.
 

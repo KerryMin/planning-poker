@@ -402,5 +402,5 @@ io.on('connection', (socket) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`🃏 Planning poker server on http://localhost:${PORT}`);
+  console.log(`🎉 Point Party server on http://localhost:${PORT}`);
 });

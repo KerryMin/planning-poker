@@ -138,7 +138,7 @@ export default function App() {
     <div className="home">
       <div className="home-card">
         <h1 className="logo">
-          <span className="logo-card">🃏</span> Pointy Poker
+          <span className="logo-card">🎉</span> Point Party
         </h1>
         <p className="tagline">Planning poker for teams who argue about 3s and 5s.</p>
 
