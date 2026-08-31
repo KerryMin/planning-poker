@@ -96,9 +96,9 @@ function CelebrationOverlay({ type }) {
   );
 }
 
-export default function Room({ socket, initialRoom, onLeave }) {
+export default function Room({ socket, selfId, initialRoom, initialMyVote = null, onLeave }) {
   const [room, setRoom] = useState(initialRoom);
-  const [myVote, setMyVote] = useState(null);
+  const [myVote, setMyVote] = useState(initialMyVote);
   const [celebration, setCelebration] = useState(null);
   const [staring, setStaring] = useState(false);
   const [reactions, setReactions] = useState([]);
@@ -113,8 +113,8 @@ export default function Room({ socket, initialRoom, onLeave }) {
   const prevState = useRef(initialRoom.state);
   const reactionSeq = useRef(0);
 
-  const me = room.users.find((u) => u.id === socket.id);
-  const isHost = room.hostId === socket.id;
+  const me = room.users.find((u) => u.id === selfId);
+  const isHost = room.hostId === selfId;
   const isPlayer = me?.role === 'player';
   const current = room.queue.find((t) => t.id === room.currentTicketId) || null;
   const players = room.users.filter((u) => u.role === 'player');
@@ -295,20 +295,32 @@ export default function Room({ socket, initialRoom, onLeave }) {
                   className={[
                     'player-card',
                     u.away ? 'away' : '',
-                    u.id === socket.id ? 'is-me' : '',
+                    u.connected === false ? 'offline' : '',
+                    u.id === selfId ? 'is-me' : '',
                     isDissenter ? 'dissenter' : '',
                     isStarer ? 'starer' : '',
                   ].join(' ')}
                 >
                   {room.hostId === u.id && <span className="crown">👑</span>}
+                  {isHost && u.id !== selfId && (
+                    <button
+                      className="make-host"
+                      title={`Make ${u.name} the moderator`}
+                      onClick={() => socket.emit('transfer_host', u.id)}
+                    >
+                      👑
+                    </button>
+                  )}
                   {isStarer && <span className="stare-eyes">👀</span>}
                   <div className="player-avatar">{u.away ? '😴' : u.emoji}</div>
                   <div className="player-name">
                     {u.name}
-                    {u.id === socket.id ? ' (you)' : ''}
+                    {u.id === selfId ? ' (you)' : ''}
                   </div>
                   <div className="player-vote">
-                    {u.away ? (
+                    {u.connected === false ? (
+                      <span className="vote-chip offline-chip">📡 reconnecting…</span>
+                    ) : u.away ? (
                       <span className="vote-chip zzz">💤</span>
                     ) : room.state === 'revealed' ? (
                       u.vote != null ? (
@@ -332,7 +344,7 @@ export default function Room({ socket, initialRoom, onLeave }) {
             <div className="spectators-row">
               <span className="dim">👁 Watching:</span>
               {spectators.map((u) => (
-                <span key={u.id} className={`spectator-chip ${u.id === socket.id ? 'is-me' : ''}`}>
+                <span key={u.id} className={`spectator-chip ${u.id === selfId ? 'is-me' : ''}`}>
                   {u.emoji} {u.name}
                 </span>
               ))}

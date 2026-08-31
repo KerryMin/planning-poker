@@ -51,7 +51,7 @@ function makeRoom(code) {
 }
 
 function activePlayers(room) {
-  return [...room.users.values()].filter((u) => u.role === 'player' && !u.away);
+  return [...room.users.values()].filter((u) => u.role === 'player' && !u.away && u.connected);
 }
 
 function currentTicket(room) {
@@ -120,6 +120,7 @@ function serializeRoom(room) {
       emoji: u.emoji,
       role: u.role,
       away: u.away,
+      connected: u.connected,
       hasVoted: u.vote != null,
       vote: room.state === 'revealed' ? u.vote : null,
     })),
@@ -172,7 +173,10 @@ function recordHistory(room) {
 
 function pickNewHost(room) {
   const users = [...room.users.values()];
-  const next = users.find((u) => u.role === 'player') || users[0];
+  const next =
+    users.find((u) => u.role === 'player' && u.connected) ||
+    users.find((u) => u.connected) ||
+    users[0];
   room.hostId = next ? next.id : null;
 }
 
@@ -197,38 +201,60 @@ io.on('connection', (socket) => {
 
   const isHost = () => room && user && room.hostId === user.id;
 
-  function joinRoomAs(r, { name, emoji, role }) {
+  function joinRoomAs(r, { name, emoji, role, sessionId }) {
     room = r;
     if (room.emptyTimer) {
       clearTimeout(room.emptyTimer);
       room.emptyTimer = null;
     }
-    user = {
-      id: socket.id,
-      name: String(name || 'Anon').slice(0, 24),
-      emoji: String(emoji || '🙂').slice(0, 8),
-      role: role === 'spectator' ? 'spectator' : 'player',
-      away: false,
-      vote: null,
-    };
-    room.users.set(socket.id, user);
+    // A stable per-tab sessionId lets a refresh or network blip reclaim the
+    // same seat (vote, crown, away state). Falls back to the socket id.
+    const sid = String(sessionId || socket.id).slice(0, 64);
+    const existing = room.users.get(sid);
+    if (existing) {
+      if (existing.removeTimer) {
+        clearTimeout(existing.removeTimer);
+        existing.removeTimer = null;
+      }
+      existing.socketId = socket.id;
+      existing.connected = true;
+      if (name) existing.name = String(name).slice(0, 24);
+      if (emoji) existing.emoji = String(emoji).slice(0, 8);
+      user = existing;
+    } else {
+      user = {
+        id: sid,
+        socketId: socket.id,
+        name: String(name || 'Anon').slice(0, 24),
+        emoji: String(emoji || '🙂').slice(0, 8),
+        role: role === 'spectator' ? 'spectator' : 'player',
+        away: false,
+        vote: null,
+        connected: true,
+        removeTimer: null,
+      };
+      room.users.set(sid, user);
+    }
     if (!room.hostId) room.hostId = user.id;
     socket.join(room.code);
     broadcast(room);
   }
 
+  const joinAck = (cb) =>
+    cb?.({ ok: true, code: room.code, room: serializeRoom(room), yourId: user.id, yourVote: user.vote });
+
   socket.on('create_room', (profile, cb) => {
     const r = makeRoom(makeCode());
     rooms.set(r.code, r);
     joinRoomAs(r, profile || {});
-    cb?.({ ok: true, code: r.code, room: serializeRoom(r) });
+    joinAck(cb);
   });
 
   socket.on('join_room', ({ code, ...profile } = {}, cb) => {
     const r = rooms.get(String(code || '').toUpperCase().trim());
     if (!r) return cb?.({ ok: false, error: 'Room not found — check the code!' });
     joinRoomAs(r, profile);
-    cb?.({ ok: true, code: r.code, room: serializeRoom(r) });
+    joinAck(cb);
   });
 
   socket.on('vote', (value) => {
@@ -320,7 +346,16 @@ io.on('connection', (socket) => {
   socket.on('nudge', () => {
     if (!isHost() || room.state !== 'voting') return;
     for (const u of activePlayers(room)) {
-      if (u.vote == null && u.id !== user.id) io.to(u.id).emit('nudged');
+      if (u.vote == null && u.id !== user.id) io.to(u.socketId).emit('nudged');
+    }
+  });
+
+  socket.on('transfer_host', (targetId) => {
+    if (!isHost()) return;
+    const target = room.users.get(targetId);
+    if (target) {
+      room.hostId = target.id;
+      broadcast(room);
     }
   });
 
@@ -332,18 +367,25 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (!room || !user) return;
-    room.users.delete(user.id);
-    if (room.hostId === user.id) pickNewHost(room);
-    if (room.users.size === 0) {
-      // grace period so a refresh or blip doesn't kill the room
-      const r = room;
-      r.emptyTimer = setTimeout(() => {
-        if (r.users.size === 0) rooms.delete(r.code);
-      }, 10 * 60 * 1000);
-    } else {
-      broadcast(room);
-      maybeAutoReveal(room);
-    }
+    // A newer connection already reclaimed this seat; this socket is stale.
+    if (user.socketId !== socket.id) return;
+    const r = room;
+    const u = user;
+    u.connected = false;
+    // 60s grace: a refresh or blip reclaims the seat with vote + crown intact.
+    u.removeTimer = setTimeout(() => {
+      r.users.delete(u.id);
+      if (r.hostId === u.id) pickNewHost(r);
+      if (r.users.size === 0) {
+        r.emptyTimer = setTimeout(() => {
+          if (r.users.size === 0) rooms.delete(r.code);
+        }, 10 * 60 * 1000);
+      } else {
+        broadcast(r);
+        maybeAutoReveal(r);
+      }
+    }, 60 * 1000);
+    broadcast(r);
     room = null;
     user = null;
   });

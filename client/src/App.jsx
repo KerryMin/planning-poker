@@ -1,6 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import Room from './Room.jsx';
+
+// Per-tab id that survives refresh, so the server can give us our seat back
+// (vote, crown, away state) instead of treating us as a new person.
+function getSessionId() {
+  let sid = sessionStorage.getItem('pp-sid');
+  if (!sid) {
+    sid = crypto.randomUUID ? crypto.randomUUID() : `sid-${Math.random().toString(36).slice(2)}${Date.now()}`;
+    sessionStorage.setItem('pp-sid', sid);
+  }
+  return sid;
+}
 
 const EMOJIS = [
   '🦊', '🐸', '🐙', '🦄', '🐝', '🦖',
@@ -16,14 +27,17 @@ function hashCode() {
 
 export default function App() {
   const socket = useMemo(() => io({ autoConnect: true }), []);
-  const [joined, setJoined] = useState(null); // { code, room }
+  const sessionId = useMemo(getSessionId, []);
+  const [joined, setJoined] = useState(null); // { code, room, myVote }
   const [error, setError] = useState('');
 
   const [name, setName] = useState(() => localStorage.getItem('pp-name') || '');
   const [emoji, setEmoji] = useState(() => localStorage.getItem('pp-emoji') || EMOJIS[0]);
-  const [spectator, setSpectator] = useState(false);
+  const [spectator, setSpectator] = useState(() => sessionStorage.getItem('pp-spectator') === '1');
   const [joinCode, setJoinCode] = useState(hashCode());
   const linkedCode = hashCode();
+  const joinedRef = useRef(null);
+  joinedRef.current = joined;
 
   useEffect(() => {
     const onHash = () => {
@@ -33,25 +47,58 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
+  // Reclaim our seat after any reconnect (server restart, network blip).
   useEffect(() => {
-    const onDisconnect = () => setJoined(null);
-    socket.on('disconnect', onDisconnect);
-    return () => socket.off('disconnect', onDisconnect);
-  }, [socket]);
+    const rejoin = () => {
+      const j = joinedRef.current;
+      if (j) {
+        socket.emit(
+          'join_room',
+          {
+            code: j.code,
+            sessionId,
+            name: localStorage.getItem('pp-name'),
+            emoji: localStorage.getItem('pp-emoji'),
+            role: sessionStorage.getItem('pp-spectator') === '1' ? 'spectator' : 'player',
+          },
+          (res) => {
+            if (res?.ok) setJoined({ code: res.code, room: res.room, myVote: res.yourVote });
+            else setJoined(null);
+          }
+        );
+      }
+    };
+    socket.io.on('reconnect', rejoin);
+    return () => socket.io.off('reconnect', rejoin);
+  }, [socket, sessionId]);
+
+  // After a page refresh, hop straight back into the room we were in.
+  useEffect(() => {
+    const code = hashCode();
+    if (code && sessionStorage.getItem('pp-room') === code && (localStorage.getItem('pp-name') || '').trim()) {
+      const doJoin = () => joinRoom(code);
+      if (socket.connected) doJoin();
+      else socket.once('connect', doJoin);
+      return () => socket.off('connect', doJoin);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function saveProfile() {
     localStorage.setItem('pp-name', name);
     localStorage.setItem('pp-emoji', emoji);
+    sessionStorage.setItem('pp-spectator', spectator ? '1' : '0');
   }
 
   function profile() {
-    return { name: name.trim(), emoji, role: spectator ? 'spectator' : 'player' };
+    return { name: name.trim(), emoji, role: spectator ? 'spectator' : 'player', sessionId };
   }
 
   function handleAck(res) {
     if (res?.ok) {
       setError('');
-      setJoined({ code: res.code, room: res.room });
+      setJoined({ code: res.code, room: res.room, myVote: res.yourVote });
+      sessionStorage.setItem('pp-room', res.code);
       window.location.hash = `#/room/${res.code}`;
     } else {
       setError(res?.error || 'Something went wrong.');
@@ -75,8 +122,11 @@ export default function App() {
     return (
       <Room
         socket={socket}
+        selfId={sessionId}
         initialRoom={joined.room}
+        initialMyVote={joined.myVote ?? null}
         onLeave={() => {
+          sessionStorage.removeItem('pp-room');
           window.location.hash = '';
           window.location.reload();
         }}

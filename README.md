@@ -16,6 +16,8 @@ Planning poker for remote agile teams — dark mode, emoji avatars, and celebrat
 - **Round history** — every finished round logged with average + votes, copyable as markdown
 - **Away mode** — step away 💤 and the room won't wait on your vote
 - **Vote nudge** — moderator pokes anyone dragging their feet
+- **Refresh-proof seats** — a page refresh or network blip reclaims your seat (vote, away state, and the moderator crown) within a 60-second grace window; dropped players show as "📡 reconnecting…"
+- **Transfer moderator** — hover another player's card and click the 👑
 - All sounds synthesized in-browser (Web Audio) — mute toggle included
 
 ## Run it
