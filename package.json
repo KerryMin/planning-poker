@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently -k -n server,client \"PORT=3001 node server/index.js\" \"vite client --port 5173\"",
     "build": "vite build client",
