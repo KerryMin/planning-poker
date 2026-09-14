@@ -105,6 +105,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
   const [toast, setToast] = useState(null);
   const [wiggle, setWiggle] = useState(false);
   const [muted, setMutedState] = useState(isMuted());
+  const [ended, setEnded] = useState(false);
   const [tab, setTab] = useState('queue');
   const [writeInOpen, setWriteInOpen] = useState(false);
   const [writeInText, setWriteInText] = useState('');
@@ -169,13 +170,20 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
       setReactions((rs) => [...rs, { id, emoji, name, x }]);
       setTimeout(() => setReactions((rs) => rs.filter((r) => r.id !== id)), 3200);
     }
+    function onEnded() {
+      setEnded(true);
+      sounds.reveal();
+      setTimeout(onLeave, 3000);
+    }
     socket.on('room_update', onUpdate);
     socket.on('nudged', onNudged);
     socket.on('reaction', onReaction);
+    socket.on('session_ended', onEnded);
     return () => {
       socket.off('room_update', onUpdate);
       socket.off('nudged', onNudged);
       socket.off('reaction', onReaction);
+      socket.off('session_ended', onEnded);
     };
   }, [socket]);
 
@@ -217,6 +225,15 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
   return (
     <div className={`room ${wiggle ? 'wiggle' : ''}`}>
+      {ended && (
+        <div className="ended-overlay">
+          <div className="ended-card">
+            <div className="ended-emoji">👋</div>
+            <h2>Session ended</h2>
+            <p className="dim">The moderator wrapped things up. Nice pointing, everyone!</p>
+          </div>
+        </div>
+      )}
       <CelebrationOverlay type={celebration} />
 
       {/* floating reactions */}
@@ -310,13 +327,23 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                 >
                   {room.hostId === u.id && <span className="crown">👑</span>}
                   {isHost && u.id !== selfId && (
-                    <button
-                      className="make-host"
-                      title={`Make ${u.name} the moderator`}
-                      onClick={() => socket.emit('transfer_host', u.id)}
-                    >
-                      👑
-                    </button>
+                    <div className="host-actions">
+                      <button title={`Make ${u.name} the moderator`} onClick={() => socket.emit('transfer_host', u.id)}>
+                        👑
+                      </button>
+                      <button
+                        title={u.away ? `Mark ${u.name} active` : `Mark ${u.name} away`}
+                        onClick={() => socket.emit('set_user_away', { id: u.id, away: !u.away })}
+                      >
+                        {u.away ? '☕' : '💤'}
+                      </button>
+                      <button
+                        title={`Move ${u.name} to spectators`}
+                        onClick={() => socket.emit('set_user_role', { id: u.id, role: 'spectator' })}
+                      >
+                        👁
+                      </button>
+                    </div>
                   )}
                   {isStarer && <span className="stare-eyes">👀</span>}
                   <div className="player-avatar">{u.away ? '😴' : u.emoji}</div>
@@ -356,7 +383,21 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
               <span className="dim">👁 Watching:</span>
               {spectators.map((u) => (
                 <span key={u.id} className={`spectator-chip ${u.id === selfId ? 'is-me' : ''}`}>
+                  {room.hostId === u.id && '👑 '}
                   {u.emoji} {u.name}
+                  {isHost && u.id !== selfId && (
+                    <span className="spec-actions">
+                      <button
+                        title={`Make ${u.name} a player`}
+                        onClick={() => socket.emit('set_user_role', { id: u.id, role: 'player' })}
+                      >
+                        🃏
+                      </button>
+                      <button title={`Make ${u.name} the moderator`} onClick={() => socket.emit('transfer_host', u.id)}>
+                        👑
+                      </button>
+                    </span>
+                  )}
                 </span>
               ))}
             </div>
@@ -439,6 +480,16 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                   </option>
                 ))}
               </select>
+              <button
+                className="btn btn-ghost btn-sm end-session"
+                onClick={() => {
+                  if (window.confirm('End the session for everyone? The room will close.')) {
+                    socket.emit('end_session');
+                  }
+                }}
+              >
+                🔚 End session
+              </button>
             </div>
           )}
 

@@ -334,6 +334,38 @@ io.on('connection', (socket) => {
     maybeAutoReveal(room);
   });
 
+  socket.on('set_user_away', ({ id, away } = {}) => {
+    if (!isHost()) return;
+    const target = room.users.get(id);
+    if (!target) return;
+    target.away = !!away;
+    if (target.away) target.vote = null;
+    broadcast(room);
+    maybeAutoReveal(room);
+  });
+
+  socket.on('set_user_role', ({ id, role } = {}) => {
+    if (!isHost()) return;
+    const target = room.users.get(id);
+    if (!target || !['player', 'spectator'].includes(role)) return;
+    target.role = role;
+    if (role === 'spectator') target.vote = null;
+    broadcast(room);
+    maybeAutoReveal(room);
+  });
+
+  socket.on('end_session', () => {
+    if (!isHost()) return;
+    const r = room;
+    io.to(r.code).emit('session_ended');
+    if (r.emptyTimer) clearTimeout(r.emptyTimer);
+    for (const u of r.users.values()) {
+      if (u.removeTimer) clearTimeout(u.removeTimer);
+    }
+    rooms.delete(r.code);
+    io.in(r.code).disconnectSockets(true);
+  });
+
   socket.on('set_auto_reveal', (val) => {
     if (!isHost()) return;
     room.autoReveal = !!val;
@@ -377,6 +409,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (!room || !user) return;
+    // The room was already torn down (moderator ended the session).
+    if (!rooms.has(room.code)) {
+      room = null;
+      user = null;
+      return;
+    }
     // A newer connection already reclaimed this seat; this socket is stale.
     if (user.socketId !== socket.id) return;
     const r = room;
