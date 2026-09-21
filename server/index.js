@@ -446,6 +446,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (!room || !user) return;
+    // The room was already torn down (moderator ended the session).
+    if (!rooms.has(room.code)) {
+      room = null;
+      user = null;
+      return;
+    }
     // A newer connection already reclaimed this seat; this socket is stale.
     if (user.socketId !== socket.id) return;
     const r = room;
