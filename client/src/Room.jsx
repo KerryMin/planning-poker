@@ -106,6 +106,11 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
   const [wiggle, setWiggle] = useState(false);
   const [muted, setMutedState] = useState(isMuted());
   const [tab, setTab] = useState('queue');
+  const [ended, setEnded] = useState(null); // { by }
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [menuFor, setMenuFor] = useState(null); // userId whose ⋯ menu is open
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const confirmEndTimer = useRef(null);
   const [writeInOpen, setWriteInOpen] = useState(false);
   const [writeInText, setWriteInText] = useState('');
   const [queueText, setQueueText] = useState('');
@@ -169,15 +174,72 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
       setReactions((rs) => [...rs, { id, emoji, name, x }]);
       setTimeout(() => setReactions((rs) => rs.filter((r) => r.id !== id)), 3200);
     }
+    function onSessionEnded({ by } = {}) {
+      sessionStorage.removeItem('pp-room');
+      setLeaveModalOpen(false);
+      setEnded({ by: by || 'the moderator' });
+    }
+    function onKicked() {
+      sessionStorage.removeItem('pp-room');
+      onLeave();
+    }
     socket.on('room_update', onUpdate);
     socket.on('nudged', onNudged);
     socket.on('reaction', onReaction);
+    socket.on('session_ended', onSessionEnded);
+    socket.on('kicked', onKicked);
     return () => {
       socket.off('room_update', onUpdate);
       socket.off('nudged', onNudged);
       socket.off('reaction', onReaction);
+      socket.off('session_ended', onSessionEnded);
+      socket.off('kicked', onKicked);
     };
   }, [socket]);
+
+  function doLeave() {
+    socket.emit('leave_room');
+    // brief pause so the leave event flushes before the page unloads
+    setTimeout(onLeave, 120);
+  }
+
+  function hostAction(u, action) {
+    setMenuFor(null);
+    if (action === 'host') socket.emit('transfer_host', u.id);
+    if (action === 'away') socket.emit('set_user_away', { id: u.id, away: !u.away });
+    if (action === 'role')
+      socket.emit('set_user_role', { id: u.id, role: u.role === 'player' ? 'spectator' : 'player' });
+    if (action === 'kick') socket.emit('kick_user', u.id);
+  }
+
+  function HostMenu({ u }) {
+    if (!isHost || u.id === selfId) return null;
+    return (
+      <div className="card-menu-wrap">
+        <button
+          className="card-menu-btn"
+          title={`Manage ${u.name}`}
+          onClick={() => setMenuFor(menuFor === u.id ? null : u.id)}
+        >
+          ⋯
+        </button>
+        {menuFor === u.id && (
+          <div className="card-menu">
+            <button onClick={() => hostAction(u, 'host')}>👑 Make moderator</button>
+            <button onClick={() => hostAction(u, 'away')}>
+              {u.away ? '☕ Mark as back' : '💤 Mark as away'}
+            </button>
+            <button onClick={() => hostAction(u, 'role')}>
+              {u.role === 'player' ? '👁 Make spectator' : '🗳️ Make voter'}
+            </button>
+            <button className="danger" onClick={() => hostAction(u, 'kick')}>
+              🚪 Remove from room
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   function castVote(value) {
     if (room.state !== 'voting' || !isPlayer || me?.away) return;
@@ -219,6 +281,64 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
     <div className={`room ${wiggle ? 'wiggle' : ''}`}>
       <CelebrationOverlay type={celebration} />
 
+      {menuFor && <div className="menu-backdrop" onClick={() => setMenuFor(null)} />}
+
+      {ended && (
+        <div className="modal-backdrop">
+          <div className="modal end-screen">
+            <div className="end-emoji">👋</div>
+            <h2>Session ended by {ended.by}</h2>
+            <p className="dim">
+              {room.history.length > 0
+                ? `${room.history.length} round${room.history.length === 1 ? '' : 's'} pointed this session. Nice work, team!`
+                : 'Nothing pointed this time — see you next refinement!'}
+            </p>
+            {room.history.length > 0 && (
+              <button className="btn btn-ghost" onClick={copyHistory}>
+                📋 Copy results as markdown
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={onLeave}>
+              🏠 Back to home
+            </button>
+          </div>
+        </div>
+      )}
+
+      {leaveModalOpen && !ended && (
+        <div className="modal-backdrop" onClick={() => setLeaveModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>👑 You’re the moderator</h2>
+            <p className="dim">Hand off the crown before you go:</p>
+            <div className="handoff-list">
+              {room.users
+                .filter((u) => u.id !== selfId)
+                .map((u) => (
+                  <button
+                    key={u.id}
+                    className="btn btn-ghost handoff-btn"
+                    onClick={() => {
+                      socket.emit('transfer_host', u.id);
+                      doLeave();
+                    }}
+                  >
+                    {u.emoji} {u.name}
+                    {u.role === 'spectator' ? ' 👁' : ''}
+                  </button>
+                ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => doLeave()}>
+                🎲 Just leave (auto-assign)
+              </button>
+              <button className="btn btn-danger" onClick={() => socket.emit('end_session')}>
+                🏁 End session for everyone
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* floating reactions */}
       <div className="reactions-layer">
         {reactions.map((r) => (
@@ -258,7 +378,10 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
           >
             {muted ? '🔇' : '🔊'}
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={onLeave}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => (isHost && room.users.length > 1 ? setLeaveModalOpen(true) : doLeave())}
+          >
             🚪 Leave
           </button>
         </div>
@@ -309,15 +432,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                   ].join(' ')}
                 >
                   {room.hostId === u.id && <span className="crown">👑</span>}
-                  {isHost && u.id !== selfId && (
-                    <button
-                      className="make-host"
-                      title={`Make ${u.name} the moderator`}
-                      onClick={() => socket.emit('transfer_host', u.id)}
-                    >
-                      👑
-                    </button>
-                  )}
+                  <HostMenu u={u} />
                   {isStarer && <span className="stare-eyes">👀</span>}
                   <div className="player-avatar">{u.away ? '😴' : u.emoji}</div>
                   <div className="player-name">
@@ -357,6 +472,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
               {spectators.map((u) => (
                 <span key={u.id} className={`spectator-chip ${u.id === selfId ? 'is-me' : ''}`}>
                   {u.emoji} {u.name}
+                  <HostMenu u={u} />
                 </span>
               ))}
             </div>
@@ -439,6 +555,20 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                   </option>
                 ))}
               </select>
+              <button
+                className={`btn btn-sm end-session-btn ${confirmEnd ? 'btn-danger' : 'btn-ghost'}`}
+                onClick={() => {
+                  if (confirmEnd) {
+                    clearTimeout(confirmEndTimer.current);
+                    socket.emit('end_session');
+                  } else {
+                    setConfirmEnd(true);
+                    confirmEndTimer.current = setTimeout(() => setConfirmEnd(false), 3500);
+                  }
+                }}
+              >
+                {confirmEnd ? '🏁 Really end for everyone?' : '🏁 End session'}
+              </button>
             </div>
           )}
 

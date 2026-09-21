@@ -17,7 +17,9 @@ Planning poker for remote agile teams — dark mode, emoji avatars, and celebrat
 - **Away mode** — step away 💤 and the room won't wait on your vote
 - **Vote nudge** — moderator pokes anyone dragging their feet
 - **Refresh-proof seats** — a page refresh or network blip reclaims your seat (vote, away state, and the moderator crown) within a 60-second grace window; dropped players show as "📡 reconnecting…"
-- **Transfer moderator** — hover another player's card and click the 👑
+- **Moderator ⋯ menu** — hover any card for per-person controls: make moderator, mark away/back (for folks who forget), convert player ↔ spectator, or remove from room
+- **Leave hand-off** — a departing moderator picks who gets the crown (or ends the session, or lets it auto-assign); leaving frees your seat immediately
+- **End session** — moderator closes the room for everyone; the team gets a farewell screen with the session's results, copyable as markdown
 - **Moderator doesn't vote** — the host facilitates (🎙️ on their card); handing off the crown restores their deck and clears the new moderator's pending ballot
 - All sounds synthesized in-browser (Web Audio) — mute toggle included
 

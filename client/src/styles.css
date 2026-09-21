@@ -409,27 +409,161 @@ h3,
   animation: pulse 1.6s infinite;
 }
 
-.make-host {
+/* ---------------- host ⋯ menus ---------------- */
+.card-menu-wrap {
   position: absolute;
   top: 4px;
   right: 6px;
+}
+
+.spectator-chip .card-menu-wrap {
+  position: relative;
+  top: auto;
+  right: auto;
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.card-menu-btn {
   background: none;
   border: none;
-  font-size: 15px;
+  color: var(--text-dim);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 8px;
   cursor: pointer;
   opacity: 0;
-  filter: grayscale(1);
-  transition: opacity 0.15s, filter 0.15s, transform 0.15s;
+  transition: opacity 0.15s, background 0.15s;
 }
 
-.player-card:hover .make-host {
-  opacity: 0.6;
+.player-card:hover .card-menu-btn,
+.spectator-chip:hover .card-menu-btn,
+.card-menu-btn:focus {
+  opacity: 1;
 }
 
-.make-host:hover {
-  opacity: 1 !important;
-  filter: none;
-  transform: scale(1.25);
+.card-menu-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.card-menu {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  z-index: 120;
+  min-width: 190px;
+  background: #221c3a;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-menu button {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.card-menu button:hover {
+  background: var(--surface-2);
+}
+
+.card-menu button.danger {
+  color: var(--danger);
+}
+
+.card-menu button.danger:hover {
+  background: rgba(251, 113, 133, 0.12);
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+}
+
+/* ---------------- modals ---------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(10, 8, 20, 0.75);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.modal {
+  width: min(420px, 100%);
+  background: #221c3a;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 26px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+  animation: modalIn 0.22s ease-out;
+}
+
+@keyframes modalIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal h2 {
+  font-size: 22px;
+}
+
+.btn-danger {
+  background: rgba(251, 113, 133, 0.15);
+  border: 1px solid var(--danger);
+  color: #fecdd3;
+}
+
+.btn-danger:hover {
+  background: rgba(251, 113, 133, 0.3);
+}
+
+.handoff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.handoff-btn {
+  font-size: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.end-screen .end-emoji {
+  font-size: 56px;
 }
 
 .crown {

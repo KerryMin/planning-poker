@@ -356,6 +356,75 @@ io.on('connection', (socket) => {
     }
   });
 
+  function removeUser(r, u) {
+    if (u.removeTimer) {
+      clearTimeout(u.removeTimer);
+      u.removeTimer = null;
+    }
+    r.users.delete(u.id);
+    if (r.hostId === u.id) pickNewHost(r);
+    if (r.users.size === 0) {
+      r.emptyTimer = setTimeout(() => {
+        if (r.users.size === 0) rooms.delete(r.code);
+      }, 10 * 60 * 1000);
+    } else {
+      broadcast(r);
+      maybeAutoReveal(r);
+    }
+  }
+
+  // Explicit leave skips the reconnect grace period so the room isn't
+  // stuck waiting on someone who deliberately walked out.
+  socket.on('leave_room', () => {
+    if (!room || !user) return;
+    const r = room;
+    const u = user;
+    room = null;
+    user = null;
+    socket.leave(r.code);
+    removeUser(r, u);
+  });
+
+  socket.on('kick_user', (targetId) => {
+    if (!isHost() || targetId === user.id) return;
+    const target = room.users.get(targetId);
+    if (!target) return;
+    io.to(target.socketId).emit('kicked');
+    removeUser(room, target);
+  });
+
+  socket.on('set_user_away', ({ id, away } = {}) => {
+    if (!isHost()) return;
+    const target = room.users.get(id);
+    if (!target) return;
+    target.away = !!away;
+    if (target.away) target.vote = null;
+    broadcast(room);
+    maybeAutoReveal(room);
+  });
+
+  socket.on('set_user_role', ({ id, role } = {}) => {
+    if (!isHost() || !['player', 'spectator'].includes(role)) return;
+    const target = room.users.get(id);
+    if (!target) return;
+    target.role = role;
+    if (role === 'spectator') target.vote = null;
+    broadcast(room);
+    maybeAutoReveal(room);
+  });
+
+  socket.on('end_session', () => {
+    if (!isHost()) return;
+    const r = room;
+    io.to(r.code).emit('session_ended', { by: user.name });
+    for (const u of r.users.values()) {
+      if (u.removeTimer) clearTimeout(u.removeTimer);
+    }
+    if (r.emptyTimer) clearTimeout(r.emptyTimer);
+    io.in(r.code).socketsLeave(r.code);
+    rooms.delete(r.code);
+  });
+
   socket.on('transfer_host', (targetId) => {
     if (!isHost()) return;
     const target = room.users.get(targetId);
