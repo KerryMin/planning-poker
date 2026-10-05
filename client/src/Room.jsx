@@ -141,6 +141,8 @@ function CelebrationOverlay({ type }) {
 
 export default function Room({ socket, selfId, initialRoom, initialMyVote = null, onLeave }) {
   const [room, setRoom] = useState(initialRoom);
+  const roomRef = useRef(initialRoom);
+  roomRef.current = room;
   const [myVote, setMyVote] = useState(initialMyVote);
   const [celebration, setCelebration] = useState(null);
   const [staring, setStaring] = useState(false);
@@ -186,7 +188,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
     function onUpdate(r) {
       // Fire effects on the voting -> revealed transition
       if (prevState.current === 'voting' && r.state === 'revealed' && r.results) {
-        sounds.reveal();
+        r.halloween ? sounds.hauntedReveal() : sounds.reveal();
         if (r.results.celebration) {
           setCelebration(r.results.celebration);
           setTimeout(() => sounds[r.results.celebration]?.(), 350);
@@ -206,7 +208,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
       setRoom(r);
     }
     function onNudged() {
-      sounds.nudge();
+      roomRef.current?.halloween ? sounds.doorKnock() : sounds.nudge();
       setWiggle(true);
       showToast('👉 Psst… the team is waiting on your vote!');
       setTimeout(() => setWiggle(false), 1200);
@@ -286,7 +288,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
   function castVote(value) {
     if (room.state !== 'voting' || !isPlayer || me?.away) return;
-    sounds.pop();
+    spooky ? sounds.ghostPop() : sounds.pop();
     setMyVote((prev) => (prev === value ? null : value));
     socket.emit('vote', value);
   }

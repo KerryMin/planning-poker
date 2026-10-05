@@ -33,7 +33,54 @@ function tone({ freq, start = 0, dur = 0.2, type = 'triangle', gain = 0.15, slid
   osc.stop(t0 + dur + 0.05);
 }
 
+// Wobbly "theremin" voice for the Halloween variants: a tone with an LFO
+// bending its pitch, which is what makes it sound like a ghost rather than a beep.
+function eerie({ freq, slideTo = null, start = 0, dur = 0.5, gain = 0.1, vibrato = 6, depth = 10, type = 'sine' }) {
+  const c = ac();
+  const t0 = c.currentTime + start;
+  const osc = c.createOscillator();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  const lfo = c.createOscillator();
+  lfo.frequency.value = vibrato;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = depth;
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.08);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g).connect(c.destination);
+  osc.start(t0);
+  lfo.start(t0);
+  osc.stop(t0 + dur + 0.05);
+  lfo.stop(t0 + dur + 0.05);
+}
+
 export const sounds = {
+  // Halloween card select: a quick ghostly "woo"
+  ghostPop() {
+    if (muted) return;
+    eerie({ freq: 320, slideTo: 500, dur: 0.22, gain: 0.1, vibrato: 11, depth: 14 });
+  },
+
+  // Halloween reveal: low rumble + eerie theremin rise
+  hauntedReveal() {
+    if (muted) return;
+    tone({ freq: 70, dur: 0.75, type: 'sawtooth', gain: 0.05, slideTo: 52 });
+    eerie({ freq: 480, slideTo: 980, dur: 0.75, gain: 0.07, vibrato: 7, depth: 16 });
+  },
+
+  // Halloween nudge: three slow dungeon-door knocks, then a ghost wail
+  doorKnock() {
+    if (muted) return;
+    [0, 0.4, 0.8].forEach((s) => tone({ freq: 95, start: s, dur: 0.14, type: 'sine', gain: 0.25, slideTo: 58 }));
+    eerie({ freq: 440, slideTo: 660, start: 1.15, dur: 0.7, gain: 0.07, vibrato: 5.5, depth: 20 });
+    eerie({ freq: 660, slideTo: 392, start: 1.85, dur: 0.6, gain: 0.05, vibrato: 5.5, depth: 20 });
+  },
+
   // Card select: soft pop
   pop() {
     if (muted) return;
