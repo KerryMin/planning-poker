@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { sounds, isMuted, setMuted } from './sounds.js';
+import { halloweenSeason, applyDocumentTheme, HALLOWEEN_REACTIONS } from './theme.js';
 
 const DECK = ['1', '2', '3', '5', '8', '13'];
 const FIB = [1, 2, 3, 5, 8, 13];
@@ -67,10 +68,52 @@ function Confetti({ count = 90 }) {
   );
 }
 
+function EmojiRain({ emojis, count = 36 }) {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        id: i,
+        emoji: emojis[i % emojis.length],
+        left: Math.random() * 100,
+        delay: Math.random() * 1.2,
+        dur: 2.4 + Math.random() * 2,
+        size: 22 + Math.random() * 22,
+        spin: Math.random() > 0.5 ? 1 : -1,
+      })),
+    [emojis, count]
+  );
+  return (
+    <div className="confetti-layer">
+      {pieces.map((p) => (
+        <span
+          key={p.id}
+          className="emoji-rain-piece"
+          style={{
+            left: `${p.left}%`,
+            fontSize: p.size,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.dur}s`,
+            '--spin': p.spin,
+          }}
+        >
+          {p.emoji}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function CelebrationOverlay({ type }) {
   if (!type) return null;
   return (
     <div className={`celebration celebration-${type}`}>
+      {type === 'monstermash' && (
+        <>
+          <div className="party-lights halloween-lights" />
+          <EmojiRain emojis={['🎃', '👻', '🦇', '🍬', '💀']} />
+          <div className="celebration-banner monstermash-banner">🎃 MONSTER MASH! 🎃</div>
+        </>
+      )}
       {type === 'party' && (
         <>
           <div className="party-lights" />
@@ -150,7 +193,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
           setTimeout(() => setCelebration(null), 5000);
         } else if (r.results.dissenterId) {
           setStaring(true);
-          setTimeout(() => sounds.womp(), 400);
+          setTimeout(() => (r.halloween ? sounds.thunder() : sounds.womp()), 400);
           setTimeout(() => setStaring(false), 5000);
         }
       }
@@ -275,11 +318,18 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
   const results = room.results;
   const userById = (id) => room.users.find((u) => u.id === id);
-  const dancing = celebration === 'disco';
+  const dancing = celebration === 'disco' || celebration === 'monstermash';
+  const spooky = !!room.halloween;
+  const reactionSet = spooky ? HALLOWEEN_REACTIONS : REACTIONS;
+
+  useEffect(() => {
+    applyDocumentTheme(spooky);
+  }, [spooky]);
 
   return (
     <div className={`room ${wiggle ? 'wiggle' : ''}`}>
       <CelebrationOverlay type={celebration} />
+      {staring && spooky && <div className="lightning-flash" />}
 
       {menuFor && <div className="menu-backdrop" onClick={() => setMenuFor(null)} />}
 
@@ -433,8 +483,8 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                 >
                   {room.hostId === u.id && <span className="crown">👑</span>}
                   <HostMenu u={u} />
-                  {isStarer && <span className="stare-eyes">👀</span>}
-                  <div className="player-avatar">{u.away ? '😴' : u.emoji}</div>
+                  {isStarer && <span className="stare-eyes">{spooky ? '🎃' : '👀'}</span>}
+                  <div className="player-avatar">{u.away ? (spooky ? '🪦' : '😴') : u.emoji}</div>
                   <div className="player-name">
                     {u.name}
                     {u.id === selfId ? ' (you)' : ''}
@@ -446,7 +496,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                       <span className="vote-chip zzz">💤</span>
                     ) : u.id === room.hostId ? (
                       <span className="vote-chip modchip" title="Moderator — doesn't vote">
-                        🎙️
+                        {spooky ? '🔮' : '🎙️'}
                       </span>
                     ) : room.state === 'revealed' ? (
                       u.vote != null ? (
@@ -460,7 +510,9 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                       <span className="vote-chip thinking">…</span>
                     )}
                   </div>
-                  {isDissenter && <div className="womp-label">womp womp 🎺</div>}
+                  {isDissenter && (
+                    <div className="womp-label">{spooky ? 'the coven stares 🕯️' : 'womp womp 🎺'}</div>
+                  )}
                 </div>
               );
             })}
@@ -468,7 +520,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
           {spectators.length > 0 && (
             <div className="spectators-row">
-              <span className="dim">👁 Watching:</span>
+              <span className="dim">{spooky ? '👻 Lurking:' : '👁 Watching:'}</span>
               {spectators.map((u) => (
                 <span key={u.id} className={`spectator-chip ${u.id === selfId ? 'is-me' : ''}`}>
                   {u.emoji} {u.name}
@@ -544,6 +596,16 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                 />
                 Auto-reveal
               </label>
+              {(spooky || halloweenSeason()) && (
+                <label className="mod-toggle">
+                  <input
+                    type="checkbox"
+                    checked={spooky}
+                    onChange={(e) => socket.emit('set_halloween', e.target.checked)}
+                  />
+                  🎃 Spooky mode
+                </label>
+              )}
               <select
                 className="celebration-select"
                 value={room.celebrationMode}
@@ -574,7 +636,10 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
           {/* ---------- deck ---------- */}
           {isPlayer && isHost && !me?.away && room.state === 'voting' && (
-            <div className="away-note">🎙️ You’re moderating this round — no vote needed from you.</div>
+            <div className="away-note">
+              {spooky ? '🔮 You’re conjuring this round' : '🎙️ You’re moderating this round'} — no vote
+              needed from you.
+            </div>
           )}
           {isPlayer && !isHost && !me?.away && room.state === 'voting' && (
             <div className="deck-wrap">
@@ -630,7 +695,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
           {/* ---------- reactions bar ---------- */}
           <div className="reaction-bar">
-            {REACTIONS.map((e) => (
+            {reactionSet.map((e) => (
               <button key={e} className="reaction-btn" onClick={() => socket.emit('reaction', e)}>
                 {e}
               </button>

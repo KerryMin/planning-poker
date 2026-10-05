@@ -32,10 +32,13 @@ function makeCode() {
   return code;
 }
 
+const isOctober = () => new Date().getMonth() === 9;
+
 function makeRoom(code) {
   return {
     code,
     hostId: null,
+    halloween: isOctober(),
     state: 'voting', // 'voting' | 'revealed'
     autoReveal: true,
     celebrationMode: 'cycle', // 'cycle' | 'party' | 'disco' | 'fanfare' | 'off'
@@ -87,8 +90,9 @@ function computeResults(room) {
   const consensus = voters.length >= 2 && sorted.length === 1;
   let celebration = null;
   if (consensus && room.celebrationMode !== 'off') {
-    celebration =
-      room.celebrationMode === 'cycle'
+    celebration = room.halloween
+      ? 'monstermash'
+      : room.celebrationMode === 'cycle'
         ? CELEBRATIONS[room.celebrationIndex++ % CELEBRATIONS.length]
         : room.celebrationMode;
   }
@@ -118,6 +122,7 @@ function serializeRoom(room) {
     state: room.state,
     autoReveal: room.autoReveal,
     celebrationMode: room.celebrationMode,
+    halloween: room.halloween,
     users: [...room.users.values()].map((u) => ({
       id: u.id,
       name: u.name,
@@ -339,6 +344,12 @@ io.on('connection', (socket) => {
     room.autoReveal = !!val;
     broadcast(room);
     maybeAutoReveal(room);
+  });
+
+  socket.on('set_halloween', (val) => {
+    if (!isHost()) return;
+    room.halloween = !!val;
+    broadcast(room);
   });
 
   socket.on('set_celebration', (mode) => {

@@ -92,6 +92,49 @@ export const sounds = {
     });
   },
 
+  // Halloween consensus: spooky organ riff (toccata-adjacent, minor key)
+  monstermash() {
+    if (muted) return;
+    const riff = [
+      { f: 587, s: 0, d: 0.11 },   // D5
+      { f: 523, s: 0.12, d: 0.11 }, // C5
+      { f: 587, s: 0.24, d: 0.4 },  // D5
+      { f: 440, s: 0.72, d: 0.09 }, // A4
+      { f: 415, s: 0.82, d: 0.09 }, // G#4
+      { f: 392, s: 0.92, d: 0.09 }, // G4
+      { f: 349, s: 1.02, d: 0.09 }, // F4
+      { f: 392, s: 1.12, d: 0.5 },  // G4
+    ];
+    for (const { f, s, d } of riff) {
+      tone({ freq: f, start: s, dur: d, type: 'sawtooth', gain: 0.08 });
+      tone({ freq: f / 2, start: s, dur: d, type: 'square', gain: 0.05 });
+      tone({ freq: f * 2, start: s, dur: d, type: 'triangle', gain: 0.03 });
+    }
+  },
+
+  // Halloween dissenter: thunderclap (filtered noise burst)
+  thunder() {
+    if (muted) return;
+    const c = ac();
+    const dur = 1.4;
+    const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(900, c.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(120, c.currentTime + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.4, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    src.connect(filter).connect(g).connect(c.destination);
+    src.start();
+  },
+
   // Nudge: cheeky knock-knock
   nudge() {
     if (muted) return;
