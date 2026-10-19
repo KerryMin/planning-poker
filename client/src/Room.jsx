@@ -750,19 +750,35 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                       t.done ? 'done' : '',
                     ].join(' ')}
                   >
-                    <button
-                      className="queue-item-text"
-                      disabled={!isHost}
-                      title={isHost ? 'Make this the current ticket' : t.text}
-                      onClick={() => socket.emit('set_current_ticket', t.id)}
-                    >
-                      {t.id === room.currentTicketId ? '▶ ' : t.done ? '✅ ' : ''}
-                      {ticketLabel(t)}
-                    </button>
-                    {t.url && (
-                      <a className="queue-open" href={t.url} target="_blank" rel="noreferrer" title="Open ticket">
-                        ↗
+                    {t.id === room.currentTicketId ? (
+                      <span className="queue-marker" title="Current ticket">
+                        ▶
+                      </span>
+                    ) : isHost ? (
+                      <button
+                        className="queue-make-current"
+                        title="Make this the current ticket"
+                        onClick={() => socket.emit('set_current_ticket', t.id)}
+                      >
+                        ▶
+                      </button>
+                    ) : t.done ? (
+                      <span className="queue-marker">✅</span>
+                    ) : null}
+                    {t.url ? (
+                      <a
+                        className="queue-item-text"
+                        href={t.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={t.text}
+                      >
+                        {ticketLabel(t)} ↗
                       </a>
+                    ) : (
+                      <span className="queue-item-text" title={t.text}>
+                        {ticketLabel(t)}
+                      </span>
                     )}
                     {isHost && (
                       <button className="queue-remove" onClick={() => socket.emit('remove_ticket', t.id)}>
