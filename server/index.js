@@ -32,13 +32,20 @@ function makeCode() {
   return code;
 }
 
-const isOctober = () => new Date().getMonth() === 9;
+const SEASON_CELEBRATIONS = { halloween: 'monstermash', thanksgiving: 'gobble' };
+
+function currentSeason() {
+  const m = new Date().getMonth();
+  if (m === 9) return 'halloween';
+  if (m === 10) return 'thanksgiving';
+  return null;
+}
 
 function makeRoom(code) {
   return {
     code,
     hostId: null,
-    halloween: isOctober(),
+    theme: currentSeason(),
     state: 'voting', // 'voting' | 'revealed'
     autoReveal: true,
     celebrationMode: 'cycle', // 'cycle' | 'party' | 'disco' | 'fanfare' | 'off'
@@ -90,8 +97,8 @@ function computeResults(room) {
   const consensus = voters.length >= 2 && sorted.length === 1;
   let celebration = null;
   if (consensus && room.celebrationMode !== 'off') {
-    celebration = room.halloween
-      ? 'monstermash'
+    celebration = room.theme
+      ? SEASON_CELEBRATIONS[room.theme]
       : room.celebrationMode === 'cycle'
         ? CELEBRATIONS[room.celebrationIndex++ % CELEBRATIONS.length]
         : room.celebrationMode;
@@ -122,7 +129,7 @@ function serializeRoom(room) {
     state: room.state,
     autoReveal: room.autoReveal,
     celebrationMode: room.celebrationMode,
-    halloween: room.halloween,
+    theme: room.theme,
     users: [...room.users.values()].map((u) => ({
       id: u.id,
       name: u.name,
@@ -346,10 +353,12 @@ io.on('connection', (socket) => {
     maybeAutoReveal(room);
   });
 
-  socket.on('set_halloween', (val) => {
+  socket.on('set_theme', (val) => {
     if (!isHost()) return;
-    room.halloween = !!val;
-    broadcast(room);
+    if (val === null || SEASON_CELEBRATIONS[val]) {
+      room.theme = val;
+      broadcast(room);
+    }
   });
 
   socket.on('set_celebration', (mode) => {

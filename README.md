@@ -21,6 +21,7 @@ Planning poker for remote agile teams — dark mode, emoji avatars, and celebrat
 - **Leave hand-off** — a departing moderator picks who gets the crown (or ends the session, or lets it auto-assign); leaving frees your seat immediately
 - **End session** — moderator closes the room for everyone; the team gets a farewell screen with the session's results, copyable as markdown
 - **Moderator doesn't vote** — the host facilitates (🎙️ on their card); handing off the crown restores their deck and clears the new moderator's pending ballot
+- **Seasonal themes** — October is Halloween 🎃 (Monster Mash, thunderclap dissenter), November is Thanksgiving 🦃 (Gobble Gobble, dinner-bell nudge, "no pie for you"); auto on/off by month, moderator toggle in the mod bar, `?theme=halloween|thanksgiving|none` to override
 - All sounds synthesized in-browser (Web Audio) — mute toggle included
 
 ## Run it

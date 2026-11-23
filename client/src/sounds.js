@@ -182,6 +182,50 @@ export const sounds = {
     src.start();
   },
 
+  // Thanksgiving card select: soft marimba-ish pluck
+  pluck() {
+    if (muted) return;
+    tone({ freq: 523, dur: 0.12, type: 'triangle', gain: 0.14 });
+    tone({ freq: 1046, dur: 0.08, type: 'sine', gain: 0.05 });
+  },
+
+  // Thanksgiving reveal: warm rising pentatonic plucks
+  harvestReveal() {
+    if (muted) return;
+    [392, 440, 523, 659].forEach((f, i) => {
+      tone({ freq: f, start: i * 0.09, dur: 0.18, type: 'triangle', gain: 0.11 });
+      tone({ freq: f / 2, start: i * 0.09, dur: 0.18, type: 'sine', gain: 0.05 });
+    });
+  },
+
+  // Thanksgiving nudge: dinner bell — come and get it!
+  dinnerBell() {
+    if (muted) return;
+    [0, 0.35].forEach((s) => {
+      tone({ freq: 1318, start: s, dur: 0.5, type: 'sine', gain: 0.12 });
+      tone({ freq: 2637, start: s, dur: 0.3, type: 'sine', gain: 0.05 });
+      tone({ freq: 3951, start: s, dur: 0.15, type: 'sine', gain: 0.025 });
+    });
+  },
+
+  // Thanksgiving consensus: turkey gobbles + plucky harvest fanfare
+  gobble() {
+    if (muted) return;
+    // fast deep vibrato on a low tone ≈ a turkey warble
+    eerie({ freq: 196, slideTo: 233, dur: 0.55, gain: 0.12, vibrato: 16, depth: 55, type: 'sawtooth' });
+    eerie({ freq: 220, slideTo: 262, start: 0.65, dur: 0.55, gain: 0.12, vibrato: 16, depth: 55, type: 'sawtooth' });
+    [392, 523, 659, 784, 1046].forEach((f, i) => {
+      tone({ freq: f, start: 1.35 + i * 0.1, dur: 0.22, type: 'triangle', gain: 0.1 });
+    });
+  },
+
+  // Thanksgiving dissenter: a deflating descending gobble
+  gobbleWomp() {
+    if (muted) return;
+    eerie({ freq: 294, slideTo: 165, dur: 1.1, gain: 0.12, vibrato: 14, depth: 40, type: 'sawtooth' });
+    tone({ freq: 98, start: 1.1, dur: 0.4, type: 'sine', gain: 0.15, slideTo: 65 });
+  },
+
   // Nudge: cheeky knock-knock
   nudge() {
     if (muted) return;

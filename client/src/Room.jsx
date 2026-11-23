@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { sounds, isMuted, setMuted } from './sounds.js';
-import { halloweenSeason, applyDocumentTheme, HALLOWEEN_REACTIONS } from './theme.js';
+import { currentSeason, applyDocumentTheme, THEMES } from './theme.js';
 
 const DECK = ['1', '2', '3', '5', '8', '13'];
 const FIB = [1, 2, 3, 5, 8, 13];
@@ -107,6 +107,13 @@ function CelebrationOverlay({ type }) {
   if (!type) return null;
   return (
     <div className={`celebration celebration-${type}`}>
+      {type === 'gobble' && (
+        <>
+          <div className="party-lights harvest-lights" />
+          <EmojiRain emojis={['🍁', '🦃', '🥧', '🍂', '🌽']} />
+          <div className="celebration-banner gobble-banner">🦃 GOBBLE GOBBLE! 🦃</div>
+        </>
+      )}
       {type === 'monstermash' && (
         <>
           <div className="party-lights halloween-lights" />
@@ -188,14 +195,15 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
     function onUpdate(r) {
       // Fire effects on the voting -> revealed transition
       if (prevState.current === 'voting' && r.state === 'revealed' && r.results) {
-        r.halloween ? sounds.hauntedReveal() : sounds.reveal();
+        const t = THEMES[r.theme];
+        (t ? sounds[t.sounds.reveal] : sounds.reveal)();
         if (r.results.celebration) {
           setCelebration(r.results.celebration);
           setTimeout(() => sounds[r.results.celebration]?.(), 350);
           setTimeout(() => setCelebration(null), 5000);
         } else if (r.results.dissenterId) {
           setStaring(true);
-          setTimeout(() => (r.halloween ? sounds.thunder() : sounds.womp()), 400);
+          setTimeout(() => (t ? sounds[t.sounds.dissent] : sounds.womp)(), 400);
           setTimeout(() => setStaring(false), 5000);
         }
       }
@@ -208,7 +216,8 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
       setRoom(r);
     }
     function onNudged() {
-      roomRef.current?.halloween ? sounds.doorKnock() : sounds.nudge();
+      const t = THEMES[roomRef.current?.theme];
+      (t ? sounds[t.sounds.nudge] : sounds.nudge)();
       setWiggle(true);
       showToast('👉 Psst… the team is waiting on your vote!');
       setTimeout(() => setWiggle(false), 1200);
@@ -288,7 +297,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
   function castVote(value) {
     if (room.state !== 'voting' || !isPlayer || me?.away) return;
-    spooky ? sounds.ghostPop() : sounds.pop();
+    (seasonTheme ? sounds[seasonTheme.sounds.pop] : sounds.pop)();
     setMyVote((prev) => (prev === value ? null : value));
     socket.emit('vote', value);
   }
@@ -320,18 +329,18 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
   const results = room.results;
   const userById = (id) => room.users.find((u) => u.id === id);
-  const dancing = celebration === 'disco' || celebration === 'monstermash';
-  const spooky = !!room.halloween;
-  const reactionSet = spooky ? HALLOWEEN_REACTIONS : REACTIONS;
+  const dancing = celebration === 'disco' || celebration === 'monstermash' || celebration === 'gobble';
+  const seasonTheme = THEMES[room.theme] || null;
+  const reactionSet = seasonTheme ? seasonTheme.reactions : REACTIONS;
 
   useEffect(() => {
-    applyDocumentTheme(spooky);
-  }, [spooky]);
+    applyDocumentTheme(room.theme);
+  }, [room.theme]);
 
   return (
     <div className={`room ${wiggle ? 'wiggle' : ''}`}>
       <CelebrationOverlay type={celebration} />
-      {staring && spooky && <div className="lightning-flash" />}
+      {staring && room.theme === 'halloween' && <div className="lightning-flash" />}
 
       {menuFor && <div className="menu-backdrop" onClick={() => setMenuFor(null)} />}
 
@@ -485,8 +494,10 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                 >
                   {room.hostId === u.id && <span className="crown">👑</span>}
                   <HostMenu u={u} />
-                  {isStarer && <span className="stare-eyes">{spooky ? '🎃' : '👀'}</span>}
-                  <div className="player-avatar">{u.away ? (spooky ? '🪦' : '😴') : u.emoji}</div>
+                  {isStarer && <span className="stare-eyes">{seasonTheme ? seasonTheme.stareEmoji : '👀'}</span>}
+                  <div className="player-avatar">
+                    {u.away ? (seasonTheme ? seasonTheme.awayAvatar : '😴') : u.emoji}
+                  </div>
                   <div className="player-name">
                     {u.name}
                     {u.id === selfId ? ' (you)' : ''}
@@ -495,10 +506,10 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                     {u.connected === false ? (
                       <span className="vote-chip offline-chip">📡 reconnecting…</span>
                     ) : u.away ? (
-                      <span className="vote-chip zzz">💤</span>
+                      <span className="vote-chip zzz">{seasonTheme ? seasonTheme.awayChip : '💤'}</span>
                     ) : u.id === room.hostId ? (
                       <span className="vote-chip modchip" title="Moderator — doesn't vote">
-                        {spooky ? '🔮' : '🎙️'}
+                        {seasonTheme ? seasonTheme.modChip : '🎙️'}
                       </span>
                     ) : room.state === 'revealed' ? (
                       u.vote != null ? (
@@ -513,7 +524,9 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                     )}
                   </div>
                   {isDissenter && (
-                    <div className="womp-label">{spooky ? 'the coven stares 🕯️' : 'womp womp 🎺'}</div>
+                    <div className="womp-label">
+                      {seasonTheme ? seasonTheme.dissentLabel : 'womp womp 🎺'}
+                    </div>
                   )}
                 </div>
               );
@@ -522,7 +535,7 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
 
           {spectators.length > 0 && (
             <div className="spectators-row">
-              <span className="dim">{spooky ? '👻 Lurking:' : '👁 Watching:'}</span>
+              <span className="dim">{seasonTheme ? seasonTheme.watchLabel : '👁 Watching:'}</span>
               {spectators.map((u) => (
                 <span key={u.id} className={`spectator-chip ${u.id === selfId ? 'is-me' : ''}`}>
                   {u.emoji} {u.name}
@@ -598,14 +611,14 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
                 />
                 Auto-reveal
               </label>
-              {(spooky || halloweenSeason()) && (
+              {(seasonTheme || currentSeason()) && (
                 <label className="mod-toggle">
                   <input
                     type="checkbox"
-                    checked={spooky}
-                    onChange={(e) => socket.emit('set_halloween', e.target.checked)}
+                    checked={!!seasonTheme}
+                    onChange={(e) => socket.emit('set_theme', e.target.checked ? currentSeason() : null)}
                   />
-                  🎃 Spooky mode
+                  {(seasonTheme || THEMES[currentSeason()]).toggleLabel}
                 </label>
               )}
               <select
@@ -639,8 +652,8 @@ export default function Room({ socket, selfId, initialRoom, initialMyVote = null
           {/* ---------- deck ---------- */}
           {isPlayer && isHost && !me?.away && room.state === 'voting' && (
             <div className="away-note">
-              {spooky ? '🔮 You’re conjuring this round' : '🎙️ You’re moderating this round'} — no vote
-              needed from you.
+              {seasonTheme ? seasonTheme.modNote : '🎙️ You’re moderating this round'} — no vote needed
+              from you.
             </div>
           )}
           {isPlayer && !isHost && !me?.away && room.state === 'voting' && (

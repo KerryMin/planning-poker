@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import Room from './Room.jsx';
-import { halloweenSeason, applyDocumentTheme, HALLOWEEN_EMOJIS } from './theme.js';
+import { currentSeason, applyDocumentTheme, THEMES } from './theme.js';
 
 // Per-tab id that survives refresh, so the server can give us our seat back
 // (vote, crown, away state) instead of treating us as a new person.
@@ -29,15 +29,16 @@ function hashCode() {
 export default function App() {
   const socket = useMemo(() => io({ autoConnect: true }), []);
   const sessionId = useMemo(getSessionId, []);
-  const spooky = useMemo(halloweenSeason, []);
-  const avatars = spooky ? HALLOWEEN_EMOJIS : EMOJIS;
+  const season = useMemo(currentSeason, []);
+  const seasonTheme = THEMES[season] || null;
+  const avatars = seasonTheme ? seasonTheme.emojis : EMOJIS;
 
   useEffect(() => {
-    applyDocumentTheme(spooky);
-    // stored avatar may be from the other season's set
+    applyDocumentTheme(season);
+    // stored avatar may be from another season's set
     setEmoji((e) => (avatars.includes(e) ? e : avatars[0]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spooky]);
+  }, [season]);
   const [joined, setJoined] = useState(null); // { code, room, myVote }
   const [error, setError] = useState('');
 
@@ -148,12 +149,10 @@ export default function App() {
     <div className="home">
       <div className="home-card">
         <h1 className="logo">
-          <span className="logo-card">{spooky ? '🎃' : '🎉'}</span> Point Party
+          <span className="logo-card">{seasonTheme ? seasonTheme.icon : '🎉'}</span> Point Party
         </h1>
         <p className="tagline">
-          {spooky
-            ? 'Planning poker that’s scary accurate. 🦇'
-            : 'Planning poker for teams who argue about 3s and 5s.'}
+          {seasonTheme ? seasonTheme.tagline : 'Planning poker for teams who argue about 3s and 5s.'}
         </p>
 
         <label className="field-label">Your name</label>
